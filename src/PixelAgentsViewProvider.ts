@@ -70,7 +70,6 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   resolveWebviewView(webviewView: vscode.WebviewView) {
     this.webviewView = webviewView;
     webviewView.webview.options = { enableScripts: true };
-    webviewView.retainContextWhenHidden = true;
     webviewView.webview.html = getWebviewContent(webviewView.webview, this.extensionUri);
 
     webviewView.webview.onDidReceiveMessage(async (message) => {

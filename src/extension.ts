@@ -9,7 +9,11 @@ export function activate(context: vscode.ExtensionContext) {
   const provider = new PixelAgentsViewProvider(context);
   providerInstance = provider;
 
-  context.subscriptions.push(vscode.window.registerWebviewViewProvider(VIEW_ID, provider));
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(VIEW_ID, provider, {
+      webviewOptions: { retainContextWhenHidden: true },
+    }),
+  );
 
   context.subscriptions.push(
     vscode.commands.registerCommand(COMMAND_SHOW_PANEL, () => {
