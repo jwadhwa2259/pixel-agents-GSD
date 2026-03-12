@@ -3,6 +3,7 @@ import type * as vscode from 'vscode';
 
 import {
   BASH_COMMAND_DISPLAY_MAX_LENGTH,
+  classifyGsdAgent,
   TASK_DESCRIPTION_DISPLAY_MAX_LENGTH,
   TEXT_IDLE_DELAY_MS,
   TOOL_DONE_DELAY_MS,
@@ -95,11 +96,18 @@ export function processTranscriptLine(
             if (!PERMISSION_EXEMPT_TOOLS.has(toolName)) {
               hasNonExemptTool = true;
             }
+            const gsdMeta =
+              toolName === 'Task'
+                ? classifyGsdAgent(
+                    typeof block.input?.prompt === 'string' ? block.input.prompt : '',
+                  )
+                : null;
             webview?.postMessage({
               type: 'agentToolStart',
               id: agentId,
               toolId: block.id,
               status,
+              ...(gsdMeta ? { gsdRole: gsdMeta.role, gsdHueShift: gsdMeta.hueShift } : {}),
             });
           }
         }

@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 
-import { CHARACTER_SITTING_OFFSET_PX, TOOL_OVERLAY_VERTICAL_OFFSET } from '../../constants.js';
+import {
+  CHARACTER_SITTING_OFFSET_PX,
+  SUBAGENT_ROLE_LABEL_OFFSET_PX,
+  TOOL_OVERLAY_VERTICAL_OFFSET,
+} from '../../constants.js';
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js';
 import type { OfficeState } from '../engine/officeState.js';
 import type { ToolActivity } from '../types.js';
@@ -225,6 +229,40 @@ export function ToolOverlay({
                 </button>
               )}
             </div>
+          </div>
+        );
+      })}
+      {subagentCharacters.map((sub) => {
+        const ch = officeState.characters.get(sub.id);
+        if (!ch || ch.matrixEffect === 'despawn') return null;
+
+        const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
+        const screenX = (deviceOffsetX + ch.x * zoom) / dpr;
+        const screenY =
+          (deviceOffsetY + (ch.y + sittingOffset - SUBAGENT_ROLE_LABEL_OFFSET_PX) * zoom) / dpr;
+
+        return (
+          <div
+            key={`role-${sub.id}`}
+            style={{
+              position: 'absolute',
+              left: screenX,
+              top: screenY,
+              transform: 'translateX(-50%)',
+              background: 'rgba(14, 14, 22, 0.85)',
+              border: '2px solid var(--pixel-border)',
+              padding: '1px 5px',
+              whiteSpace: 'nowrap',
+              pointerEvents: 'none',
+              boxShadow: 'var(--pixel-shadow)',
+              borderRadius: 0,
+            }}
+          >
+            <span
+              style={{ fontSize: '16px', color: 'var(--vscode-foreground)', fontStyle: 'italic' }}
+            >
+              {sub.role}
+            </span>
           </div>
         );
       })}

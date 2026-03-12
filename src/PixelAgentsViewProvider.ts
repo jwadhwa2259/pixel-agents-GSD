@@ -250,6 +250,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
                 if (wt && this.webview) {
                   sendWallTilesToWebview(this.webview, wt);
                 }
+                const fa = await loadFurnitureAssets(distRoot);
+                if (fa && this.webview) {
+                  sendAssetsToWebview(this.webview, fa);
+                }
               }
             } catch {
               /* ignore */

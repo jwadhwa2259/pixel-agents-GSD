@@ -32,6 +32,30 @@ export const LAYOUT_FILE_POLL_INTERVAL_MS = 2000;
 // ── Settings Persistence ────────────────────────────────────
 export const GLOBAL_KEY_SOUND_ENABLED = 'pixel-agents.soundEnabled';
 
+// ── GSD Sub-Agent Classification ────────────────────────────
+export const GSD_AGENT_ROLES = [
+  { patterns: ['research', 'investigate'], role: 'Researcher', hueShift: 200 },
+  { patterns: ['plan', 'create task', 'create plans'], role: 'Planner', hueShift: 120 },
+  { patterns: ['check', 'verify plan', 'plan checker'], role: 'Checker', hueShift: 160 },
+  { patterns: ['execute', 'implement', 'executor'], role: 'Executor', hueShift: 30 },
+  { patterns: ['verify', 'verification', 'verifier', 'uat'], role: 'Verifier', hueShift: 280 },
+  { patterns: ['debug', 'diagnose'], role: 'Debugger', hueShift: 0 },
+  { patterns: ['map', 'analyze codebase', 'codebase map'], role: 'Mapper', hueShift: 60 },
+  { patterns: ['quick'], role: 'Quick', hueShift: 320 },
+] as const;
+
+export const GSD_DEFAULT_ROLE = { role: 'Agent', hueShift: 90 } as const;
+
+export function classifyGsdAgent(prompt: string): { role: string; hueShift: number } {
+  const lower = prompt.toLowerCase();
+  for (const entry of GSD_AGENT_ROLES) {
+    if (entry.patterns.some((p) => lower.includes(p))) {
+      return { role: entry.role, hueShift: entry.hueShift };
+    }
+  }
+  return { role: GSD_DEFAULT_ROLE.role, hueShift: GSD_DEFAULT_ROLE.hueShift };
+}
+
 // ── VS Code Identifiers ─────────────────────────────────────
 export const VIEW_ID = 'pixel-agents.panelView';
 export const COMMAND_SHOW_PANEL = 'pixel-agents.showPanel';

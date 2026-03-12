@@ -16,6 +16,8 @@ export interface SubagentCharacter {
   parentAgentId: number;
   parentToolId: string;
   label: string;
+  role: string;
+  hueShift: number;
 }
 
 export interface FurnitureAsset {
@@ -200,10 +202,22 @@ export function useExtensionMessages(
         // Create sub-agent character for Task tool subtasks
         if (status.startsWith('Subtask:')) {
           const label = status.slice('Subtask:'.length).trim();
-          const subId = os.addSubagent(id, toolId);
+          const gsdRole = (msg.gsdRole as string | undefined) ?? 'Agent';
+          const gsdHueShift = (msg.gsdHueShift as number | undefined) ?? 90;
+          const subId = os.addSubagent(id, toolId, gsdHueShift);
           setSubagentCharacters((prev) => {
             if (prev.some((s) => s.id === subId)) return prev;
-            return [...prev, { id: subId, parentAgentId: id, parentToolId: toolId, label }];
+            return [
+              ...prev,
+              {
+                id: subId,
+                parentAgentId: id,
+                parentToolId: toolId,
+                label,
+                role: gsdRole,
+                hueShift: gsdHueShift,
+              },
+            ];
           });
         }
       } else if (msg.type === 'agentToolDone') {

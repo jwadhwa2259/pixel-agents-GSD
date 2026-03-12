@@ -13,13 +13,9 @@ function copyAssets() {
   const dstDir = path.join(__dirname, 'dist', 'assets');
 
   if (fs.existsSync(srcDir)) {
-    // Remove existing dist/assets if present
-    if (fs.existsSync(dstDir)) {
-      fs.rmSync(dstDir, { recursive: true });
-    }
-
-    // Copy recursively
-    fs.cpSync(srcDir, dstDir, { recursive: true });
+    // Merge into dist/assets without wiping — preserves generated assets (furniture, floors)
+    // that aren't committed to webview-ui/public/assets/ but live in dist/assets/
+    fs.cpSync(srcDir, dstDir, { recursive: true, force: true });
     console.log('✓ Copied assets/ → dist/assets/');
   } else {
     console.log('ℹ️  assets/ folder not found (optional)');
