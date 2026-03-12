@@ -198,12 +198,21 @@ export function layoutToSeats(furniture: PlacedFurniture[]): Map<string, Seat> {
         // 2) Adjacent desk direction
         // 3) Default forward (DOWN)
         let facingDir: Direction = Direction.DOWN;
+        let nearDesk = false;
         if (entry.orientation) {
           facingDir = orientationToFacing(entry.orientation);
+          // Still check for adjacent desk even when orientation is set
+          for (const d of dirs) {
+            if (deskTiles.has(`${tileCol + d.dc},${tileRow + d.dr}`)) {
+              nearDesk = true;
+              break;
+            }
+          }
         } else {
           for (const d of dirs) {
             if (deskTiles.has(`${tileCol + d.dc},${tileRow + d.dr}`)) {
               facingDir = d.facing;
+              nearDesk = true;
               break;
             }
           }
@@ -217,6 +226,7 @@ export function layoutToSeats(furniture: PlacedFurniture[]): Map<string, Seat> {
           seatRow: tileRow,
           facingDir,
           assigned: false,
+          nearDesk,
         });
         seatCount++;
       }

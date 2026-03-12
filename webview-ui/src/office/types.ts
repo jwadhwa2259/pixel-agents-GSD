@@ -62,6 +62,8 @@ export interface Seat {
   /** Direction character faces when sitting (toward adjacent desk) */
   facingDir: Direction;
   assigned: boolean;
+  /** True if this seat has an adjacent desk tile (preferred for agent spawning) */
+  nearDesk?: boolean;
 }
 
 export interface FurnitureInstance {

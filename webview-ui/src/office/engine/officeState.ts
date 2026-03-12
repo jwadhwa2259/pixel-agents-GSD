@@ -11,6 +11,7 @@ import {
   INACTIVE_SEAT_TIMER_MIN_SEC,
   INACTIVE_SEAT_TIMER_RANGE_SEC,
   PALETTE_COUNT,
+  PRIMARY_SEAT_EXCLUSION_RADIUS,
   REPORTING_APPROACH_TILES,
   SOCIALIZING_WANDER_PAUSE_MAX_SEC,
   SOCIALIZING_WANDER_PAUSE_MIN_SEC,
@@ -203,11 +204,40 @@ export class OfficeState {
     return result;
   }
 
-  private findFreeSeat(): string | null {
+  /**
+   * Find a free seat. Prefers desk-adjacent seats.
+   * If excludeCol/excludeRow/excludeRadius provided, deprioritizes seats in that area
+   * (used by sub-agents to avoid the CEO's office area).
+   */
+  private findFreeSeat(
+    excludeCol?: number,
+    excludeRow?: number,
+    excludeRadius?: number,
+  ): string | null {
+    const hasExclusion =
+      excludeCol !== undefined && excludeRow !== undefined && excludeRadius !== undefined;
+
+    // Tier 1: nearDesk AND outside exclusion zone
+    // Tier 2: nearDesk (anywhere)
+    // Tier 3: any seat
+    let tier2: string | null = null;
+    let tier3: string | null = null;
     for (const [uid, seat] of this.seats) {
-      if (!seat.assigned) return uid;
+      if (seat.assigned) continue;
+      if (seat.nearDesk) {
+        if (
+          hasExclusion &&
+          Math.abs(seat.seatCol - excludeCol) + Math.abs(seat.seatRow - excludeRow) <= excludeRadius
+        ) {
+          if (!tier2) tier2 = uid;
+        } else {
+          return uid; // Tier 1: nearDesk + outside exclusion
+        }
+      } else {
+        if (!tier3) tier3 = uid;
+      }
     }
-    return null;
+    return tier2 ?? tier3;
   }
 
   /** Cache zone data from the current layout */
@@ -439,14 +469,14 @@ export class OfficeState {
     const hueShift =
       hueShiftOverride !== undefined ? hueShiftOverride : parentCh ? parentCh.hueShift : 0;
 
-    // Prefer seats in workspace zone, then fall back to closest seat to parent
+    // Prefer seats in workspace zone, then desk-adjacent seats, then closest to parent
     const parentCol = parentCh ? parentCh.tileCol : 0;
     const parentRow = parentCh ? parentCh.tileRow : 0;
     const dist = (c: number, r: number) => Math.abs(c - parentCol) + Math.abs(r - parentRow);
 
     let bestSeatId: string | null = null;
 
-    // Try workspace zone seats first
+    // Try workspace zone seats first (closest to parent within zone)
     const workspaceZone = findZoneByType(this.zones, ZoneType.WORKSPACE);
     if (workspaceZone) {
       const workspaceSeatIds = getSeatsInZone(this.seats, workspaceZone);
@@ -463,14 +493,29 @@ export class OfficeState {
       }
     }
 
-    // Fallback: closest free seat to parent (original behavior)
+    // No zones: use findFreeSeat(), avoiding the primary seat area so sub-agents
+    // go to the workspace rather than clustering in the CEO's office
     if (!bestSeatId) {
-      let bestDist = Infinity;
+      const primarySeat = this.primarySeatId ? this.seats.get(this.primarySeatId) : null;
+      if (primarySeat) {
+        bestSeatId = this.findFreeSeat(
+          primarySeat.seatCol,
+          primarySeat.seatRow,
+          PRIMARY_SEAT_EXCLUSION_RADIUS,
+        );
+      } else {
+        bestSeatId = this.findFreeSeat();
+      }
+    }
+
+    // Last resort: closest free seat to parent
+    if (!bestSeatId) {
+      let bestAnyDist = Infinity;
       for (const [uid, seat] of this.seats) {
         if (!seat.assigned) {
           const d = dist(seat.seatCol, seat.seatRow);
-          if (d < bestDist) {
-            bestDist = d;
+          if (d < bestAnyDist) {
+            bestAnyDist = d;
             bestSeatId = uid;
           }
         }

@@ -120,3 +120,5 @@ export const CHARACTER_HIT_HEIGHT = 24;
 export const TOOL_OVERLAY_VERTICAL_OFFSET = 32;
 export const SUBAGENT_ROLE_LABEL_OFFSET_PX = 30;
 export const PULSE_ANIMATION_DURATION_SEC = 1.5;
+/** Manhattan distance from primary seat within which sub-agents avoid spawning */
+export const PRIMARY_SEAT_EXCLUSION_RADIUS = 8;
