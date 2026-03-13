@@ -233,4 +233,6 @@ export interface Character {
   phaseTarget: { col: number; row: number } | null;
   /** Whether this sub-agent has already shown its reporting talk bubble */
   hasReported: boolean;
+  /** ID of another sub-agent this character is walking toward for a chat, or null */
+  socializeChatTarget: number | null;
 }

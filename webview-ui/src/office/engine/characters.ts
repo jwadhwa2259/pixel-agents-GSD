@@ -87,6 +87,7 @@ export function createCharacter(
     reportingTimer: 0,
     phaseTarget: null,
     hasReported: false,
+    socializeChatTarget: null,
   };
 }
 

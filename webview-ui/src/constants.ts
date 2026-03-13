@@ -103,6 +103,8 @@ export const SOCIALIZING_WANDER_PAUSE_MIN_SEC = 3.0;
 export const SOCIALIZING_WANDER_PAUSE_MAX_SEC = 8.0;
 export const TALK_BUBBLE_FADE_DURATION_SEC = 0.5;
 export const ALL_DONE_WALK_DELAY_SEC = 1.0;
+export const SOCIALIZE_CHAT_CHANCE = 0.5;
+export const SOCIALIZE_APPROACH_TILES = 2;
 
 // ── Game Logic ───────────────────────────────────────────────
 export const MAX_DELTA_TIME_SEC = 0.1;
