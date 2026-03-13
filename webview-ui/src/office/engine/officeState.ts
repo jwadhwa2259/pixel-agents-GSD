@@ -28,7 +28,12 @@ import {
   layoutToTileMap,
 } from '../layout/layoutSerializer.js';
 import { findPath, getWalkableTiles, isWalkable } from '../layout/tileMap.js';
-import { findApproachTile, findDoorwayTiles, findZoneByType } from '../layout/zoneUtils.js';
+import {
+  findApproachTile,
+  findDoorwayTiles,
+  findNearbyWalkableTile,
+  findZoneByType,
+} from '../layout/zoneUtils.js';
 import type {
   Character,
   FurnitureInstance,
@@ -623,7 +628,7 @@ export class OfficeState {
     }
   }
 
-  /** Deactivate a specific sub-agent — triggers reporting phase if zones exist, else idle */
+  /** Deactivate a specific sub-agent — triggers reporting phase (walks to parent, shows talk bubbles) */
   deactivateSubagent(parentAgentId: number, parentToolId: string): void {
     const key = `${parentAgentId}:${parentToolId}`;
     const id = this.subagentIdMap.get(key);
@@ -644,55 +649,64 @@ export class OfficeState {
     }
     ch.isActive = false;
 
-    // If zones exist, start reporting phase; otherwise fall back to idle
     const ceoZone = findZoneByType(this.zones, ZoneType.CEO_ROOM);
     const parentCh = this.characters.get(parentAgentId);
 
-    if (ceoZone && parentCh) {
-      ch.subagentPhase = SubagentPhase.REPORTING;
-      ch.hasReported = false;
-      ch.reportingTimer = 0;
-
-      // Find approach tile near parent within CEO room
-      const approachTile = findApproachTile(
-        parentCh.tileCol,
-        parentCh.tileRow,
-        REPORTING_APPROACH_TILES,
-        ceoZone,
-        this.tileMap,
-        this.blockedTiles,
-      );
-
-      if (approachTile) {
-        ch.phaseTarget = approachTile;
-        const path = findPath(
-          ch.tileCol,
-          ch.tileRow,
-          approachTile.col,
-          approachTile.row,
-          this.tileMap,
-          this.blockedTiles,
-        );
-        if (path.length > 0) {
-          ch.path = path;
-          ch.moveProgress = 0;
-          ch.state = CharacterState.WALK;
-          ch.frame = 0;
-          ch.frameTimer = 0;
-        } else {
-          // Can't path — skip to socializing
-          this.transitionToSocializing(ch);
-        }
-      } else {
-        // No approach tile — skip to socializing
-        this.transitionToSocializing(ch);
-      }
-    } else {
-      // No zones — old behavior (idle wander)
+    if (!parentCh) {
+      // No parent — idle wander
       ch.seatTimer = -1;
       ch.path = [];
       ch.moveProgress = 0;
       this.rebuildFurnitureInstances();
+      return;
+    }
+
+    // Start reporting phase — walk to parent and show talk bubbles
+    ch.subagentPhase = SubagentPhase.REPORTING;
+    ch.hasReported = false;
+    ch.reportingTimer = 0;
+
+    // Find approach tile near parent — within CEO zone if available, else anywhere
+    const approachTile = ceoZone
+      ? findApproachTile(
+          parentCh.tileCol,
+          parentCh.tileRow,
+          REPORTING_APPROACH_TILES,
+          ceoZone,
+          this.tileMap,
+          this.blockedTiles,
+        )
+      : findNearbyWalkableTile(
+          parentCh.tileCol,
+          parentCh.tileRow,
+          REPORTING_APPROACH_TILES,
+          this.tileMap,
+          this.blockedTiles,
+        );
+
+    if (approachTile) {
+      ch.phaseTarget = approachTile;
+      const path = findPath(
+        ch.tileCol,
+        ch.tileRow,
+        approachTile.col,
+        approachTile.row,
+        this.tileMap,
+        this.blockedTiles,
+      );
+      if (path.length > 0) {
+        ch.path = path;
+        ch.moveProgress = 0;
+        ch.state = CharacterState.WALK;
+        ch.frame = 0;
+        ch.frameTimer = 0;
+      } else {
+        // Can't path — skip to socializing
+        this.transitionToSocializing(ch);
+      }
+    } else {
+      // No approach tile — skip to socializing
+      this.transitionToSocializing(ch);
     }
   }
 
@@ -901,24 +915,34 @@ export class OfficeState {
     return true;
   }
 
-  /** Walk main agent to the CEO room doorway */
+  /** Walk main agent to the CEO room doorway (or a nearby tile if no zones) */
   private mainAgentWalkToDoorway(parentId: number): void {
     const parentCh = this.characters.get(parentId);
     if (!parentCh) return;
 
     const ceoZone = findZoneByType(this.zones, ZoneType.CEO_ROOM);
-    if (!ceoZone) return;
 
-    const doorways = findDoorwayTiles(
-      ceoZone,
-      this.tileMap,
-      this.blockedTiles,
-      parentCh.tileCol,
-      parentCh.tileRow,
-    );
-    if (doorways.length === 0) return;
+    let target: { col: number; row: number } | null = null;
+    if (ceoZone) {
+      const doorways = findDoorwayTiles(
+        ceoZone,
+        this.tileMap,
+        this.blockedTiles,
+        parentCh.tileCol,
+        parentCh.tileRow,
+      );
+      if (doorways.length > 0) target = doorways[0];
+    }
+    // No zone or no doorway — pick a random walkable tile a few steps away
+    if (!target) {
+      const nearby = this.walkableTiles.filter((t) => {
+        const d = Math.abs(t.col - parentCh.tileCol) + Math.abs(t.row - parentCh.tileRow);
+        return d >= 2 && d <= 5;
+      });
+      if (nearby.length > 0) target = nearby[Math.floor(Math.random() * nearby.length)];
+    }
+    if (!target) return;
 
-    const target = doorways[0]; // closest doorway
     const path = this.withOwnSeatUnblocked(parentCh, () =>
       findPath(
         parentCh.tileCol,

@@ -112,3 +112,38 @@ export function findApproachTile(
 
   return best;
 }
+
+/**
+ * Find a walkable tile near a target position (zone-free version).
+ * Searches the entire tileMap within maxDist Manhattan distance.
+ */
+export function findNearbyWalkableTile(
+  targetCol: number,
+  targetRow: number,
+  maxDist: number,
+  tileMap: TileTypeVal[][],
+  blockedTiles: Set<string>,
+): { col: number; row: number } | null {
+  let best: { col: number; row: number } | null = null;
+  let bestDist = Infinity;
+
+  const rows = tileMap.length;
+  const cols = rows > 0 ? tileMap[0].length : 0;
+  const rMin = Math.max(0, targetRow - maxDist);
+  const rMax = Math.min(rows - 1, targetRow + maxDist);
+  const cMin = Math.max(0, targetCol - maxDist);
+  const cMax = Math.min(cols - 1, targetCol + maxDist);
+
+  for (let r = rMin; r <= rMax; r++) {
+    for (let c = cMin; c <= cMax; c++) {
+      if (!isWalkable(c, r, tileMap, blockedTiles)) continue;
+      const d = Math.abs(c - targetCol) + Math.abs(r - targetRow);
+      if (d > 0 && d <= maxDist && d < bestDist) {
+        bestDist = d;
+        best = { col: c, row: r };
+      }
+    }
+  }
+
+  return best;
+}

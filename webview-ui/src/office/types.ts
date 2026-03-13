@@ -138,6 +138,7 @@ export const ZoneType = {
   WORKSPACE: 'workspace',
   CEO_ROOM: 'ceo_room',
   KITCHEN: 'kitchen',
+  LOUNGE: 'lounge',
 } as const;
 export type ZoneType = (typeof ZoneType)[keyof typeof ZoneType];
 

@@ -365,6 +365,139 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     vscode.window.showInformationMessage(`Pixel Agents: Default layout exported to ${targetPath}`);
   }
 
+  /** Debug test: simulate 5 sub-agents spawning, working, reporting, and finishing */
+  testSubagentLifecycle(): void {
+    const webview = this.webview;
+    if (!webview) {
+      vscode.window.showWarningMessage('Pixel Agents: Webview not ready.');
+      return;
+    }
+
+    vscode.window.showInformationMessage(
+      'Pixel Agents: Starting sub-agent lifecycle test (5 agents, ~2 min)...',
+    );
+
+    // Use a fake agent ID that doesn't conflict with real agents
+    const fakeParentId = 999;
+    const subagentSpawnDelay = 20_000; // 20s between spawns
+    const workDuration = 20_000; // 20s of "work" per sub-agent
+    const toolNames = ['Read', 'Bash', 'Edit', 'Grep', 'Write'];
+    const roles = [
+      { label: 'Researcher', role: 'Researcher', hueShift: 200 },
+      { label: 'Planner', role: 'Planner', hueShift: 120 },
+      { label: 'Executor', role: 'Executor', hueShift: 30 },
+      { label: 'Verifier', role: 'Verifier', hueShift: 280 },
+      { label: 'Debugger', role: 'Debugger', hueShift: 0 },
+    ];
+
+    // Step 1: Create the fake parent agent (sits in CEO room)
+    webview.postMessage({ type: 'agentCreated', id: fakeParentId });
+    // Mark parent as active with a coordinating tool
+    setTimeout(() => {
+      webview.postMessage({
+        type: 'agentToolStart',
+        id: fakeParentId,
+        toolId: 'tool_main_task',
+        status: 'Task: Coordinating sub-agents',
+      });
+    }, 500);
+
+    // Step 2: Spawn sub-agents staggered by 20s each
+    for (let i = 0; i < 5; i++) {
+      const spawnAt = 2000 + i * subagentSpawnDelay; // 2s, 22s, 42s, 62s, 82s
+      const toolId = `tool_sub_${i}`;
+      const r = roles[i];
+
+      // Spawn sub-agent (agentToolStart with "Subtask:" prefix → creates character)
+      setTimeout(() => {
+        console.log(`[Test] Spawning sub-agent ${i} (${r.label}) at t=${spawnAt}ms`);
+        webview.postMessage({
+          type: 'agentToolStart',
+          id: fakeParentId,
+          toolId,
+          status: `Subtask: ${r.label}`,
+          gsdRole: r.role,
+          gsdHueShift: r.hueShift,
+        });
+      }, spawnAt);
+
+      // Simulate sub-agent working on tools (3 cycles of start→done)
+      const toolCycles = 3;
+      for (let t = 0; t < toolCycles; t++) {
+        const cycleStart = spawnAt + 2000 + t * 5000;
+        const tool = toolNames[(i + t) % toolNames.length];
+
+        setTimeout(() => {
+          webview.postMessage({
+            type: 'subagentToolStart',
+            id: fakeParentId,
+            parentToolId: toolId,
+            toolId: `${toolId}_work_${t}`,
+            status: `${tool}: working on task...`,
+          });
+        }, cycleStart);
+
+        setTimeout(() => {
+          webview.postMessage({
+            type: 'subagentToolDone',
+            id: fakeParentId,
+            parentToolId: toolId,
+            toolId: `${toolId}_work_${t}`,
+          });
+        }, cycleStart + 3000);
+      }
+
+      // After work duration: send subagentClear → triggers REPORTING phase → walk to parent → talk bubbles
+      setTimeout(() => {
+        console.log(`[Test] Sub-agent ${i} (${r.label}) finishing → reporting phase`);
+        webview.postMessage({
+          type: 'subagentClear',
+          id: fakeParentId,
+          parentToolId: toolId,
+        });
+      }, spawnAt + workDuration);
+
+      // Mark the parent's subtask tool as done too
+      setTimeout(
+        () => {
+          webview.postMessage({
+            type: 'agentToolDone',
+            id: fakeParentId,
+            toolId,
+          });
+        },
+        spawnAt + workDuration + 500,
+      );
+    }
+
+    // Step 3: After all sub-agents have reported + socialized, clean up
+    const lastSubFinish = 2000 + 4 * subagentSpawnDelay + workDuration;
+    const cleanupAt = lastSubFinish + 20_000; // extra 20s for reporting walk + talk + socializing
+
+    setTimeout(() => {
+      console.log('[Test] Clearing all agent state — turn end');
+      webview.postMessage({
+        type: 'agentToolDone',
+        id: fakeParentId,
+        toolId: 'tool_main_task',
+      });
+      webview.postMessage({
+        type: 'agentToolsClear',
+        id: fakeParentId,
+        clearSubagents: true,
+      });
+      // Show waiting bubble on parent (turn complete)
+      webview.postMessage({ type: 'agentStatus', id: fakeParentId, status: 'waiting' });
+    }, cleanupAt);
+
+    // Step 4: Remove fake agent
+    setTimeout(() => {
+      console.log('[Test] Removing fake parent agent — test complete');
+      webview.postMessage({ type: 'agentClosed', id: fakeParentId });
+      vscode.window.showInformationMessage('Pixel Agents: Sub-agent lifecycle test complete!');
+    }, cleanupAt + 10_000);
+  }
+
   private startLayoutWatcher(): void {
     if (this.layoutWatcher) return;
     this.layoutWatcher = watchLayoutFile((layout) => {

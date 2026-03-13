@@ -27,6 +27,10 @@
       {
         "command": "pixel-agents.exportDefaultLayout",
         "title": "Pixel Agents: Export Layout as Default"
+      },
+      {
+        "command": "pixel-agents.testSubagents",
+        "title": "Pixel Agents: Test Sub-Agent Lifecycle"
       }
     ],
     "viewsContainers": {
