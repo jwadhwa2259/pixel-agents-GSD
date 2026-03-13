@@ -262,6 +262,7 @@ function adoptTerminalForFile(
     activeSubagentToolIds: new Map(),
     activeSubagentToolNames: new Map(),
     gsdToolMeta: new Map(),
+    backgroundToolIds: new Set(),
     isWaiting: false,
     permissionSent: false,
     hadToolsInTurn: false,

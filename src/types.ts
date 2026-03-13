@@ -14,6 +14,8 @@ export interface AgentState {
   activeSubagentToolNames: Map<string, Map<string, string>>; // parentToolId → (subToolId → toolName)
   /** GSD metadata for active Agent tools (for re-sending on webview reconnect) */
   gsdToolMeta: Map<string, { role: string; hueShift: number }>;
+  /** Agent tool IDs launched with run_in_background: true (still running after tool_result) */
+  backgroundToolIds: Set<string>;
   isWaiting: boolean;
   permissionSent: boolean;
   hadToolsInTurn: boolean;

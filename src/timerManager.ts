@@ -16,6 +16,14 @@ export function clearAgentActivity(
   agent.activeToolNames.clear();
   agent.activeSubagentToolIds.clear();
   agent.activeSubagentToolNames.clear();
+  // Send subagentClear for any remaining background tools before clearing
+  if (clearSubagents) {
+    for (const toolId of agent.backgroundToolIds) {
+      webview?.postMessage({ type: 'subagentClear', id: agentId, parentToolId: toolId });
+      agent.gsdToolMeta.delete(toolId);
+    }
+  }
+  agent.backgroundToolIds.clear();
   agent.isWaiting = false;
   agent.permissionSent = false;
   cancelPermissionTimer(agentId, permissionTimers);

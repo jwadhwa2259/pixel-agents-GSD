@@ -59,6 +59,27 @@ export function formatToolStatus(toolName: string, input: Record<string, unknown
   }
 }
 
+/** Deactivate sub-agents for background tools and clear tracking */
+function clearBackgroundTools(
+  agent: AgentState,
+  agentId: number,
+  webview: vscode.Webview | undefined,
+): void {
+  if (agent.backgroundToolIds.size === 0) return;
+  console.log(
+    `[Pixel Agents] Agent ${agentId}: clearing ${agent.backgroundToolIds.size} background tool(s)`,
+  );
+  for (const toolId of agent.backgroundToolIds) {
+    agent.gsdToolMeta.delete(toolId);
+    webview?.postMessage({
+      type: 'subagentClear',
+      id: agentId,
+      parentToolId: toolId,
+    });
+  }
+  agent.backgroundToolIds.clear();
+}
+
 export function processTranscriptLine(
   agentId: number,
   line: string,
@@ -110,11 +131,15 @@ export function processTranscriptLine(
                 )
               : null;
             if (isSubagentTool) {
+              const isBackground = !!block.input?.run_in_background;
               console.log(
-                `[Pixel Agents] Agent ${agentId} SUBAGENT detected: tool=${toolName} id=${block.id} status="${status}" gsdRole=${gsdMeta?.role} gsdHueShift=${gsdMeta?.hueShift}`,
+                `[Pixel Agents] Agent ${agentId} SUBAGENT detected: tool=${toolName} id=${block.id} status="${status}" gsdRole=${gsdMeta?.role} gsdHueShift=${gsdMeta?.hueShift} background=${isBackground}`,
               );
               if (gsdMeta) {
                 agent.gsdToolMeta.set(block.id, gsdMeta);
+              }
+              if (isBackground) {
+                agent.backgroundToolIds.add(block.id);
               }
             }
             webview?.postMessage({
@@ -148,16 +173,26 @@ export function processTranscriptLine(
             if (block.type === 'tool_result' && block.tool_use_id) {
               console.log(`[Pixel Agents] Agent ${agentId} tool done: ${block.tool_use_id}`);
               const completedToolId = block.tool_use_id;
+              const isBackgroundTool = agent.backgroundToolIds.has(completedToolId);
               // If the completed tool was a Task/Agent, clear its subagent tools
               if (SUBAGENT_TOOLS.has(agent.activeToolNames.get(completedToolId) || '')) {
                 agent.activeSubagentToolIds.delete(completedToolId);
                 agent.activeSubagentToolNames.delete(completedToolId);
-                agent.gsdToolMeta.delete(completedToolId);
-                webview?.postMessage({
-                  type: 'subagentClear',
-                  id: agentId,
-                  parentToolId: completedToolId,
-                });
+                if (isBackgroundTool) {
+                  // Background agent — keep sub-agent active (it's still running)
+                  // Keep gsdToolMeta for status display
+                  console.log(
+                    `[Pixel Agents] Agent ${agentId} background tool done (agent still running): ${completedToolId}`,
+                  );
+                } else {
+                  // Foreground agent completed — deactivate sub-agent
+                  agent.gsdToolMeta.delete(completedToolId);
+                  webview?.postMessage({
+                    type: 'subagentClear',
+                    id: agentId,
+                    parentToolId: completedToolId,
+                  });
+                }
               }
               agent.activeToolIds.delete(completedToolId);
               agent.activeToolStatuses.delete(completedToolId);
@@ -178,12 +213,14 @@ export function processTranscriptLine(
         } else {
           // New user text prompt — new turn starting
           cancelWaitingTimer(agentId, waitingTimers);
+          clearBackgroundTools(agent, agentId, webview);
           clearAgentActivity(agent, agentId, permissionTimers, webview);
           agent.hadToolsInTurn = false;
         }
       } else if (typeof content === 'string' && content.trim()) {
         // New user text prompt — new turn starting
         cancelWaitingTimer(agentId, waitingTimers);
+        clearBackgroundTools(agent, agentId, webview);
         clearAgentActivity(agent, agentId, permissionTimers, webview);
         agent.hadToolsInTurn = false;
       }
@@ -198,18 +235,38 @@ export function processTranscriptLine(
         agent.activeToolNames.clear();
         agent.activeSubagentToolIds.clear();
         agent.activeSubagentToolNames.clear();
-        agent.gsdToolMeta.clear();
+        // Only clear gsdToolMeta for non-background tools
+        for (const toolId of agent.gsdToolMeta.keys()) {
+          if (!agent.backgroundToolIds.has(toolId)) {
+            agent.gsdToolMeta.delete(toolId);
+          }
+        }
         webview?.postMessage({ type: 'agentToolsClear', id: agentId, clearSubagents: false });
       }
 
-      agent.isWaiting = true;
-      agent.permissionSent = false;
       agent.hadToolsInTurn = false;
-      webview?.postMessage({
-        type: 'agentStatus',
-        id: agentId,
-        status: 'waiting',
-      });
+
+      if (agent.backgroundToolIds.size > 0) {
+        // Background agents still running — keep main agent and sub-agents active
+        console.log(
+          `[Pixel Agents] Agent ${agentId} turn ended with ${agent.backgroundToolIds.size} background agent(s) still running`,
+        );
+        agent.isWaiting = false;
+        agent.permissionSent = false;
+        webview?.postMessage({
+          type: 'agentStatus',
+          id: agentId,
+          status: 'active',
+        });
+      } else {
+        agent.isWaiting = true;
+        agent.permissionSent = false;
+        webview?.postMessage({
+          type: 'agentStatus',
+          id: agentId,
+          status: 'waiting',
+        });
+      }
     }
   } catch {
     // Ignore malformed lines
